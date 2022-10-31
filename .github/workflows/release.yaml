@@ -1,0 +1,89 @@
+on:
+  push:
+    tags:
+    - 'v*'
+
+name: Release
+
+jobs:
+  build:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      
+      - name: Set up Go 1.18.3
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.18.3
+        id: go
+      
+      - name: Checkout code
+        uses: actions/checkout@master
+      
+      - name: build linux-amd64
+        run: GOOS=linux GOARCH="amd64" go build -a -v -installsuffix cgo -ldflags="-w -s" -o http-proxy-with-in-ram-cache-linux-amd64 cmd/http-proxy-with-in-ram-cache/*.go
+      
+      - name: build darwin-amd64
+        run: GOOS=darwin GOARCH="amd64" go build -a -v -installsuffix cgo -ldflags="-w -s" -o http-proxy-with-in-ram-cache-darwin-amd64 cmd/http-proxy-with-in-ram-cache/*.go
+
+      - name: build darwin-arm64
+        run: GOOS=darwin GOARCH="arm64" go build -a -v -installsuffix cgo -ldflags="-w -s" -o http-proxy-with-in-ram-cache-darwin-arm64 cmd/http-proxy-with-in-ram-cache/*.go
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      
+      - name: save linux-amd64 artifact in Actions
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: linux-amd64
+          path: http-proxy-with-in-ram-cache-linux-amd64
+      
+      - name: save darwin-amd64 artifact in Actions
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: darwin-amd64
+          path: http-proxy-with-in-ram-cache-darwin-amd64
+
+      - name: save darwin-arm64 artifact in Actions
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: darwin-arm64
+          path: http-proxy-with-in-ram-cache-darwin-arm64
+
+      - name: upload linux-amd64 release asset
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./http-proxy-with-in-ram-cache-linux-amd64
+          asset_name: http-proxy-with-in-ram-cache-linux-amd64
+          asset_content_type: application/binary
+      
+      - name: upload darwin-amd64 release asset
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./http-proxy-with-in-ram-cache-darwin-amd64
+          asset_name: http-proxy-with-in-ram-cache-darwin-amd64
+          asset_content_type: application/binary
+
+      - name: upload darwin-arm64 release asset
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./http-proxy-with-in-ram-cache-darwin-arm64
+          asset_name: http-proxy-with-in-ram-cache-darwin-arm64
+          asset_content_type: application/binary
