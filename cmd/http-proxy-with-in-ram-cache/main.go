@@ -12,7 +12,8 @@ import (
 
 var (
   proxyClient = &fasthttp.HostClient{
-    Addr: "cdimage.debian.org:80",
+    Addr:                     "cdimage.debian.org:80",
+    NoDefaultUserAgentHeader: true,
   }
   storage = make(map[string]*fasthttp.Response)
   bind    = "0.0.0.0:8080"
@@ -25,19 +26,28 @@ func init() {
   flag.Parse()
 }
 
+type stats struct {
+  Total   int64          `json:"total"`
+  Storage map[string]int `json:"storage"`
+}
+
 func ReverseProxyHandler(ctx *fasthttp.RequestCtx) {
   req := &ctx.Request
   resp := &ctx.Response
   path := string(ctx.Request.URI().Path())
   
   if path == "/stats" {
-    storageDump := make(map[string]int)
     rw.RLock()
+    s := stats{
+      Total:   0,
+      Storage: make(map[string]int, len(storage)),
+    }
     for k, v := range storage {
-      storageDump[k] = len(v.Body())
+      s.Storage[k] = len(v.Body())
+      s.Total += int64(len(v.Body()))
     }
     rw.RUnlock()
-    j, je := json.Marshal(storageDump)
+    j, je := json.Marshal(s)
     if je == nil {
       fmt.Fprintf(ctx, string(j))
     }
@@ -54,10 +64,12 @@ func ReverseProxyHandler(ctx *fasthttp.RequestCtx) {
     storage[path] = &fasthttp.Response{}
     resp.CopyTo(storage[path])
     rw.Unlock()
+  } else {
+    ctx.Logger().Printf("cache")
+    rw.RLock()
+    storage[path].CopyTo(resp)
+    rw.RUnlock()
   }
-  rw.RLock()
-  storage[path].CopyTo(resp)
-  rw.RUnlock()
 }
 
 func main() {
