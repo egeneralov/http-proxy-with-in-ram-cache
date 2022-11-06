@@ -7,6 +7,7 @@ import (
   "log"
   "sync"
   
+  "github.com/dustin/go-humanize"
   "github.com/valyala/fasthttp"
 )
 
@@ -27,7 +28,7 @@ func init() {
 }
 
 type stats struct {
-  Total   int64          `json:"total"`
+  Total   string         `json:"total"`
   Storage map[string]int `json:"storage"`
 }
 
@@ -39,13 +40,15 @@ func ReverseProxyHandler(ctx *fasthttp.RequestCtx) {
   if path == "/stats" {
     rw.RLock()
     s := stats{
-      Total:   0,
       Storage: make(map[string]int, len(storage)),
     }
+    total := uint64(0)
     for k, v := range storage {
-      s.Storage[k] = len(v.Body())
-      s.Total += int64(len(v.Body()))
+      l := len(v.Body())
+      s.Storage[k] = l
+      total += uint64(l)
     }
+    s.Total = humanize.Bytes(total)
     rw.RUnlock()
     j, je := json.Marshal(s)
     if je == nil {
